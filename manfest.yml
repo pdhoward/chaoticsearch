@@ -1,0 +1,9 @@
+---
+applications:
+- name: chaoticbot2
+  memory: 512M
+  instances: 1
+  host: chaoticbot2
+  domain: mybluemix.net
+  path: .
+  command: npm run start
