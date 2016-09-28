@@ -5,6 +5,8 @@
 
 import ChatMessage            from '../models/Message';
 import watsonResponse         from '../models/WatsonResponse';
+import async                  from 'async';
+import axios                  from "axios";
 import bodyparser             from 'body-parser';
 import moment                 from 'moment';
 import uuid                   from 'node-uuid';
@@ -16,8 +18,6 @@ import colors                 from 'colors'
 require( 'dotenv' ).config( {silent: true} );
 
 const logs = null;
-const workspace = process.env.WORKSPACE_ID || 'workspace-id';
-
 
 // watson conversation parameters
 const watson =             require( 'watson-developer-cloud' );
@@ -31,7 +31,7 @@ const conversation = watson.conversation( {
 } );
 
 const message = {
-  workspace_id: workspace,
+  workspace_id: '',
   input: {
     text: ''
   },
@@ -87,152 +87,133 @@ module.exports = function(router) {
       req.session.count++;
     };
 
-    if ( ! message.workspace_id || message.workspace_id === 'workspace-id' ) {
-        return res.status( 500 );};
-
-    //prepare message to broadcast from watson once response is received
-
-    buildMessageToSend.channelID = watsonMessage.channelID;
-    buildMessageToSend.user = watsonUserID;
-    buildID = `${Date.now()}${uuid.v4()}`;
-    buildMessageToSend.id = buildID;
-    buildMessageToSend.time = moment.utc().format('lll');
-
-    // Send the input to the Watson conversation service
-    conversation.message( message, function(err, data) {
-      if ( err )  return res.status( err.code || 500 ).json( err );
-
-      //prepare to save watson message to mongodb collection
-      const newwatsonResponse = new watsonResponse(data);
-      req.session.context = newwatsonResponse.context;
-
-// ..........................................................................
-
-
-      ////////////////////////////////////////////////////
-     //////////// Broadcast response via sockets//////////
-     ////////////////////////////////////////////////////
 
      console.log("---------WATSON RESPONSE ANALYZER ----------".green);
      console.log(">>>> user chat test <<<<<".green);
      console.log({reqbody: req.body});
-     console.log(">>>>>message response from watson".green);
-     console.log(JSON.stringify(data));
-
-     ////////////////////INTEGRATE ASYNC TO MANAGE FLOW /////////////////////
-     // this will be required on every chat message response from watson   //
-     // to determine which apis need to be fired and how the response to   //
-     // user is composed. Sometimes, watson response be sent straight through//
-     // other times it will trigger api calls
-     // if i could create a match condition based on various properties in the
-     // watson response object --- i could take it into a separate function for
-     // resolution (api, triggers, message composition, socket fires)
-     // else pass message and socket fires
-
-     if (data.intents[0].intent == "findbook") {
-       export function fetchChannels(user) {
-         return dispatch => {
-           dispatch(requestChannels())
-           return axios(`/api/channels/${user}`, {
-             method: 'get',
-       	    headers: {'Content-Type': 'application/json',
-       		            'withCredentials': true,
-       		            'Cache-Control': 'no-cache'
-                       }
-           })
-             .then(function(response){
-               dispatch(receiveChannels(response.data))
-             })
-             .catch(error => {throw error});
-         }
-       }
-     }
 
 
-////////////////////// start of async series //////////////////////
-/*
+           ////////////////////////////////////////////////////////////////////////
+          //////////// Process interaction with Watson and User Response //////////
+          /////////////////////////////////////////////////////////////////////////
 
-// for package.json     "async": "0.9.0",
-// for import           var async = require('async');
+    req.bag = {}   // my stuff for async processing
 
-async.series([
-	function(callback){
-		api.find(cityName, function(err, cityCode){             //  mongo api to fetch cityCode
-				if (err) {console.log("MongoDB lookup failed")}
-				passcityCode = cityCode;
-				callback(null, 'step1');
-			})
-	},
-	function(callback){
-		createUrl(passcityCode[0].code, function(err, reqURL){   // function to construct the api endpoint
-				console.log("this url = " + reqURL);
-				callback(null, 'step2');
-			})
-	},
-	function(callback){
 
-				// insert function to request the yahoo weather forecast here
+    async.series([
 
-	}
-],
-function(err, results){
-		if (err) return next(err);
-		console.log(results);
+	     function(callback){
 
-		res.render('index', {Visitors: userCount,
-				 Date: data.query.results.channel.item.forecast[0].date,
-				 City: data.query.results.channel.location.city,
-				 Day: data.query.results.channel.item.forecast[0].day,
-				 High: data.query.results.channel.item.forecast[0].high,
-				 Low: data.query.results.channel.item.forecast[0].low,
-				 Conditions: data.query.results.channel.item.forecast[0].text});
+          setWorkSpaceID(watsonMessage.channelID, function(workSpace) {
+            console.log(">>>>> 1. workspace id is set".green);
+            console.log({channelID: watsonMessage.channelID},
+                        {workSpace: workSpace});
+            req.bag.workspace = workSpace;
+            req.bag.channelID = watsonMessage.channelID;
+				    callback(null, 'step1');
+			    })
+	      },
+
+	    function(callback){
+        // send user text to watson
+        conversation.message( message, function(err, data) {
+
+          console.log(">>>>> 2. message response from watson".green);
+
+          if ( err )  {
+            return res.status( err.code || 500 ).json( err );
+          };
+
+          req.session.context = data.context;
+          req.bag.message = message;
+          req.bag.data = data;
+
+          console.log(JSON.stringify(data));
+
+				 callback(null, 'step2');
+			   })
+	   },
+	    function(callback){
+        getReplyToIntent(req.bag.data, function(err, reply){
+
+          console.log(">>>>> 3. reply to intent".green);
+          console.log({reply: reply})
+          req.bag.text = reply;
+
+        callback(null, 'step3');
+
+        })
+	  },
+    function(callback){
+      buildMessage(req, function(err, reply){
+
+        console.log(">>>>> 4. build message".green);
+        console.log({buildMessage: buildMessage})
+
+      callback(null, 'step4');
+
+      })
+    },
+    function(callback){
+      broadcastMessage(req, function(err, reply){
+
+        // do something with result
+      console.log(">>>>> 5. broadcast message".green);
+
+      callback(null, 'step5');
+
+      })
+    },
+    function(callback){
+      saveMessage(req, function(err, reply){
+
+        // do something with result
+      console.log(">>>>> 6. save message".green);
+      
+      callback(null, 'step6');
+
+      })
+    }
+
+  ],
+      function(err, results){
+        if (err) return next(err);
+
+        console.log(results);
+        next();
 		}
-)
-*/
-///////////////////// end of async series /////////////////////////////
-
-
-     ////////////////////////////////////////////////////////////////////////
-
-      buildMessageToSend.text = newwatsonResponse.output.text[0];
-      io.to(buildMessageToSend.channelID).emit('new bc message', buildMessageToSend);
+  )
 
 
 
-
-//...........................................................................
-
-      //build and broadcast message
-      buildMessageToSend.text = newwatsonResponse.output.text[0];
-      io.to(buildMessageToSend.channelID).emit('new bc message', buildMessageToSend);
-      //prepare to save the watson chat response to mongodb collection
-      const newChatMessage = new ChatMessage(buildMessageToSend);
-
-      // save watson messages
-      newwatsonResponse.save(function (err, data) {
-          if (err) {
-            console.log(err);
-            return res.status(500).json({msg: 'internal server error'}); }
-          newChatMessage.save(function (err, data) {
-            if (err) {
-              console.log(err);
-              return res.status(500).json({msg: 'internal server error'}); }
-            next()
-          });
-        });
-
-
-      });
     });
   }
 
 
-/**
-* Updates the response text using the intent confidence
-* input The request to the Conversation service
-* response The response from the Conversation service
-* Returns the response with the updated message
-*/
+//////////////////////////////////////////////////////////////////////////
+//////////// workspace id is set based on channel of user       //////////
+//////////////////////////////////////////////////////////////////////////
+
+function setWorkSpaceID(input, cb) {
+
+  const workspace = process.env.WORKSPACE_ID || 'workspace-id';
+  message.workspace_id = workspace;
+
+  if ( ! message.workspace_id || message.workspace_id === 'workspace-id' ) {
+      return res.status( 500 );
+    };
+
+  console.log(">>>>> setworkspaceid function <<<<<<".green);
+  console.log({channel: input});
+  console.log(JSON.stringify(message.workspace_id));
+
+  cb(null, message.workspace_id);
+
+}
+
+        //////////////////////////////////////////////////////////////////////////
+       //////////// Update Response based on watson confidence interval //////////
+       //////////////////////////////////////////////////////////////////////////
 
 function updateMessage(input, response) {
     var responseText = null;
@@ -250,12 +231,8 @@ function updateMessage(input, response) {
 
   if ( response.intents && response.intents[0] ) {
     var intent = response.intents[0];
-  // Depending on the confidence of the response the app can return different messages.
-  // The confidence will vary depending on how well the system is trained. The service will always try to assign
-  // a class/intent to the input. If the confidence is low, then it suggests the service is unsure of the
-  // user's intent . In these cases it is usually best to return a disambiguation message
-  // ('I did not understand your intent, please rephrase your question', etc..)
-  if ( intent.confidence >= 0.75 ) {
+
+    if ( intent.confidence >= 0.75 ) {
     responseText = 'I understood your intent was ' + intent.intent;
   } else if ( intent.confidence >= 0.5 ) {
     responseText = 'I think your intent was ' + intent.intent;
@@ -273,4 +250,115 @@ function updateMessage(input, response) {
   return response;
 }
 
+
+////////////////////////////////////////////////////////////////
+//////////// Analyze intent and process actions if any //////////
+////////////////////////////////////////////////////////////////
+
+
+function getReplyToIntent(input, cb) {
+
+    var replyText = null;
+    const intentType = input.intents[0].intent;
+
+    switch (intentType) {
+        case "INTENT_TYPE_DIALOG_EMAIL":
+            break;
+        case "INTENT_TYPE_DIALOG_MEETING":
+            break;
+        case "INTENT_TYPE_DIALOG_SMS":
+            break;
+        case "findbook":
+
+            const URL = 'https://www.googleapis.com/books/v1/volumes?q=';
+
+            req.bag.title = 'Gone with the Wind';
+
+            axios(URL + req.bag.title, {
+              method: 'get',
+              headers: {'Content-Type': 'application/json',
+                        'Cache-Control': 'no-cache'
+                    }
+                })
+              .then(res => res.json())
+              .then(json => {
+                if (json.error) {
+                  cb(json.error, null);
+                } else {
+                  cb(null, json)
+                }
+              })
+              .catch((json) => {
+                cb(json.error, null);
+              });
+
+            break;
+
+        case "respond-calculation-numeric":
+            replyText = CalculationPipeline.numericCalculation(userText);
+            break;
+        case "respond-calculation-conversion":
+            replyText = CalculationPipeline.conversionCalculation(userText);
+            break;
+
+        default:
+            replyText = input.output.text[0];
+            break;
+    }
+
+    cb(null, replyText)
+}
+
+
+
+////////////////////////////////////////////////////
+//////////// Build message format for sockets//////////
+////////////////////////////////////////////////////
+
+function buildMessage(req, cb) {
+
+  //prepare message to broadcast from watson once response is received
+
+  buildMessageToSend.channelID = req.bag.channelID;
+  buildMessageToSend.user = watsonUserID;
+  buildID = `${Date.now()}${uuid.v4()}`;
+  buildMessageToSend.id = buildID;
+  buildMessageToSend.time = moment.utc().format('lll');
+  buildMessageToSend.text = req.bag.text;
+
+  return;
+
+}
+
+////////////////////////////////////////////////////
+//////////// Broadcast response via sockets//////////
+////////////////////////////////////////////////////
+
+function broadcastMessage(req, cb) {
+
+    io.to(buildMessageToSend.channelID).emit('new bc message', buildMessageToSend);
+    return;
+}
+  ////////////////////////////////////////////////////
+  //////////// save watson response on mongo//////////
+  ////////////////////////////////////////////////////
+function saveMessage(cb){
+
+  //prepare to save the watson chat response to mongodb collection
+  const newwatsonResponse = new WatsonResponse(build<essageToSend);
+  // save watson messages
+  newwatsonResponse.save(function (err, data) {
+      if (err) {
+        console.log(err);
+        return res.status(500).json({msg: 'internal server error'}); }
+      newChatMessage.save(function (err, data) {
+        if (err) {
+          console.log(err);
+          return res.status(500).json({msg: 'internal server error'}); }
+        next()
+      });
+    });
+
+
+}
 ////////////////////////////////////////////////////////////////
