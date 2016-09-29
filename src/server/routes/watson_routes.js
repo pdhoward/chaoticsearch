@@ -4,7 +4,7 @@
 ////////////////////////////////////////////////////////////////////////
 
 import ChatMessage            from '../models/Message';
-import watsonResponse         from '../models/WatsonResponse';
+import WatsonResponse         from '../models/WatsonResponse';
 import async                  from 'async';
 import axios                  from "axios";
 import bodyparser             from 'body-parser';
@@ -13,7 +13,6 @@ import uuid                   from 'node-uuid';
 import vcapServices           from 'vcap_services';
 import basicAuth              from 'basic-auth-connect';
 import colors                 from 'colors'
-
 
 require( 'dotenv' ).config( {silent: true} );
 
@@ -63,8 +62,6 @@ var buildID = '';
 //////////////////Watson APIs /////////////////////////////
 //////////////////////////////////////////////////////////
 
-
-
 module.exports = function(router) {
 
   router.use(bodyparser.json());
@@ -72,9 +69,7 @@ module.exports = function(router) {
   //evaluate a new message
   router.post('/newmessage', function(req, res, next) {
 
-    var io = req.app.get('socketio');
-
-    // for every new message emitted -- Watson looks at it and responds
+    // for every new message -- Watson looks at it and responds
     const watsonMessage = new ChatMessage(req.body);
 
     //prepare message to send to Watson
@@ -127,8 +122,8 @@ module.exports = function(router) {
           req.session.context = data.context;
           req.bag.message = message;
           req.bag.data = data;
-
-          console.log(JSON.stringify(data));
+          console.log({message: message})
+          console.log({response: data});
 
 				 callback(null, 'step2');
 			   })
@@ -145,17 +140,17 @@ module.exports = function(router) {
         })
 	  },
     function(callback){
-      buildMessage(req, function(err, reply){
+      buildChatMessage(req, function(){
 
         console.log(">>>>> 4. build message".green);
-        console.log({buildMessage: buildMessage})
+        console.log({buildMessage: buildMessageToSend})
 
       callback(null, 'step4');
 
       })
     },
     function(callback){
-      broadcastMessage(req, function(err, reply){
+      broadcastChatMessage(req, function(){
 
         // do something with result
       console.log(">>>>> 5. broadcast message".green);
@@ -165,16 +160,25 @@ module.exports = function(router) {
       })
     },
     function(callback){
-      saveMessage(req, function(err, reply){
+      saveWatsonMessage(req, function(){
 
         // do something with result
-      console.log(">>>>> 6. save message".green);
-      
+      console.log(">>>>> 6. save watson message".green);
+
       callback(null, 'step6');
 
       })
-    }
+    },
+    function(callback){
+      saveChatMessage(req, function(){
 
+        // do something with result
+      console.log(">>>>> 7. save chat message".green);
+
+      callback(null, 'step7');
+
+      })
+    }
   ],
       function(err, results){
         if (err) return next(err);
@@ -185,9 +189,8 @@ module.exports = function(router) {
   )
 
 
-
-    });
-  }
+    });     // end of router post
+  }         // end of module export
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -315,7 +318,7 @@ function getReplyToIntent(input, cb) {
 //////////// Build message format for sockets//////////
 ////////////////////////////////////////////////////
 
-function buildMessage(req, cb) {
+function buildChatMessage(req, cb) {
 
   //prepare message to broadcast from watson once response is received
 
@@ -326,39 +329,48 @@ function buildMessage(req, cb) {
   buildMessageToSend.time = moment.utc().format('lll');
   buildMessageToSend.text = req.bag.text;
 
-  return;
-
-}
+  cb();
+  }
 
 ////////////////////////////////////////////////////
 //////////// Broadcast response via sockets//////////
 ////////////////////////////////////////////////////
 
-function broadcastMessage(req, cb) {
+function broadcastChatMessage(req, cb) {
+
+    var io = req.app.get('socketio');
 
     io.to(buildMessageToSend.channelID).emit('new bc message', buildMessageToSend);
-    return;
-}
-  ////////////////////////////////////////////////////
-  //////////// save watson response on mongo//////////
-  ////////////////////////////////////////////////////
-function saveMessage(cb){
+    cb()
+  }
+  ///////////////////////////////////////////////////////
+  //////////// save watson response a on mongo//////////
+  /////////////////////////////////////////////////////
+function saveWatsonMessage(req, cb){
 
   //prepare to save the watson chat response to mongodb collection
-  const newwatsonResponse = new WatsonResponse(build<essageToSend);
+  const newwatsonResponse = new WatsonResponse(req.bag.data);
   // save watson messages
   newwatsonResponse.save(function (err, data) {
       if (err) {
         console.log(err);
         return res.status(500).json({msg: 'internal server error'}); }
-      newChatMessage.save(function (err, data) {
+      cb()
+    });
+  }
+  ///////////////////////////////////////////////////////
+  //////////// save chat message on mongo     //////////
+  /////////////////////////////////////////////////////
+function saveChatMessage(req, cb){
+
+    //prepare to save user chat message to mongodb collection
+    const newChatMessage = new ChatMessage(buildMessageToSend);
+
+    newChatMessage.save(function (err, data) {
         if (err) {
           console.log(err);
           return res.status(500).json({msg: 'internal server error'}); }
-        next()
+        cb()
       });
-    });
-
-
-}
+    }
 ////////////////////////////////////////////////////////////////
