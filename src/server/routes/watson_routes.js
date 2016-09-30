@@ -94,25 +94,29 @@ module.exports = function(router) {
 
     req.bag = {}   // my stuff for async processing
 
-
     async.series([
 
-	     function(callback){
+      //////////////////////////////////////
+      ///// set workspaceid to channel/////
+      ////////////////////////////////////
 
-          setWorkSpaceID(watsonMessage.channelID, function(workSpace) {
+	     function(callback){
+          setWorkSpaceID(watsonMessage.channelID, function(err, result) {
             console.log(">>>>> 1. workspace id is set".green);
             console.log({channelID: watsonMessage.channelID},
-                        {workSpace: workSpace});
-            req.bag.workspace = workSpace;
+                        {workSpace: result});
+            req.bag.workspace = result;
             req.bag.channelID = watsonMessage.channelID;
 				    callback(null, 'step1');
 			    })
 	      },
 
-	    function(callback){
-        // send user text to watson
-        conversation.message( message, function(err, data) {
+        //////////////////////////////////////
+        ///// send user text to watson  /////
+        ////////////////////////////////////
 
+	    function(callback){
+        conversation.message( message, function(err, data) {
           console.log(">>>>> 2. message response from watson".green);
 
           if ( err )  {
@@ -120,16 +124,22 @@ module.exports = function(router) {
           };
 
           req.session.context = data.context;
+
           req.bag.message = message;
           req.bag.data = data;
           console.log({message: message})
-          console.log({response: data});
+          console.log(JSON.stringify(data));
 
 				 callback(null, 'step2');
 			   })
 	   },
+
+        //////////////////////////////////////
+        ///// analyze the intent        /////
+        ////////////////////////////////////
+
 	    function(callback){
-        getReplyToIntent(req.bag.data, function(err, reply){
+        getReplyToIntent(req, function(err, reply){
 
           console.log(">>>>> 3. reply to intent".green);
           console.log({reply: reply})
@@ -139,6 +149,10 @@ module.exports = function(router) {
 
         })
 	  },
+
+      ///////////////////////////////////////////
+      ///// build chat message to respond  /////
+      /////////////////////////////////////////
     function(callback){
       buildChatMessage(req, function(){
 
@@ -149,31 +163,34 @@ module.exports = function(router) {
 
       })
     },
+
+      //////////////////////////////////////////
+      ///// broadcast message on sockets  /////
+      ////////////////////////////////////////
     function(callback){
       broadcastChatMessage(req, function(){
-
-        // do something with result
-      console.log(">>>>> 5. broadcast message".green);
 
       callback(null, 'step5');
 
       })
     },
+
+    //////////////////////////////////////
+    ///// save watson response on db /////
+    ////////////////////////////////////
     function(callback){
       saveWatsonMessage(req, function(){
-
-        // do something with result
-      console.log(">>>>> 6. save watson message".green);
 
       callback(null, 'step6');
 
       })
     },
+
+    //////////////////////////////////////
+    ///// save watson chat on db    /////
+    ////////////////////////////////////
     function(callback){
       saveChatMessage(req, function(){
-
-        // do something with result
-      console.log(">>>>> 7. save chat message".green);
 
       callback(null, 'step7');
 
@@ -181,9 +198,14 @@ module.exports = function(router) {
     }
   ],
       function(err, results){
-        if (err) return next(err);
+        if (err) {
+          console.log("error in async sequence")
+          return next(err);
+        }
 
         console.log(results);
+        console.log(JSON.stringify(req.bag))
+
         next();
 		}
   )
@@ -205,10 +227,6 @@ function setWorkSpaceID(input, cb) {
   if ( ! message.workspace_id || message.workspace_id === 'workspace-id' ) {
       return res.status( 500 );
     };
-
-  console.log(">>>>> setworkspaceid function <<<<<<".green);
-  console.log({channel: input});
-  console.log(JSON.stringify(message.workspace_id));
 
   cb(null, message.workspace_id);
 
@@ -259,10 +277,10 @@ function updateMessage(input, response) {
 ////////////////////////////////////////////////////////////////
 
 
-function getReplyToIntent(input, cb) {
+function getReplyToIntent(req, cb) {
 
     var replyText = null;
-    const intentType = input.intents[0].intent;
+    const intentType = req.bag.data.intents[0].intent;
 
     switch (intentType) {
         case "INTENT_TYPE_DIALOG_EMAIL":
@@ -271,13 +289,9 @@ function getReplyToIntent(input, cb) {
             break;
         case "INTENT_TYPE_DIALOG_SMS":
             break;
-        case "findbook":
-
+        case "findtitle":
             const URL = 'https://www.googleapis.com/books/v1/volumes?q=';
-
-            req.bag.title = 'Gone with the Wind';
-
-            axios(URL + req.bag.title, {
+            axios(URL + req.bag.data.context.book, {
               method: 'get',
               headers: {'Content-Type': 'application/json',
                         'Cache-Control': 'no-cache'
@@ -286,10 +300,9 @@ function getReplyToIntent(input, cb) {
               .then(res => res.json())
               .then(json => {
                 if (json.error) {
-                  cb(json.error, null);
-                } else {
-                  cb(null, json)
-                }
+                  cb(json.error, null);}
+                else {
+                  cb(null, res.data) }
               })
               .catch((json) => {
                 cb(json.error, null);
@@ -305,7 +318,7 @@ function getReplyToIntent(input, cb) {
             break;
 
         default:
-            replyText = input.output.text[0];
+            replyText = req.bag.data.output.text[0];
             break;
     }
 

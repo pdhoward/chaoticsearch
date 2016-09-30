@@ -91,7 +91,7 @@ const sessionParms = {
       domain: 'localhost',
       secure: false,
       httpOnly: false,
-      maxAge: 1000*60*24}
+      maxAge: 1000}
   }
 
 
