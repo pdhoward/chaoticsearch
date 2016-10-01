@@ -83,9 +83,10 @@ module.exports = function(router) {
     };
 
 
-     console.log("---------WATSON RESPONSE ANALYZER ----------".green);
+     console.log("--------- START OF NEW CHAT ----------".green);
      console.log(">>>> user chat test <<<<<".green);
      console.log({reqbody: req.body});
+     console.log("--------------------------------------------")
 
 
            ////////////////////////////////////////////////////////////////////////
@@ -102,9 +103,10 @@ module.exports = function(router) {
 
 	     function(callback){
           setWorkSpaceID(watsonMessage.channelID, function(err, result) {
-            console.log(">>>>> 1. workspace id is set".green);
+            console.log(">>>>> 1. Setup Workspace ID Based on Channel]".green);
             console.log({channelID: watsonMessage.channelID},
                         {workSpace: result});
+            console.log("--------------------------------------------".green)
             req.bag.workspace = result;
             req.bag.channelID = watsonMessage.channelID;
 				    callback(null, 'step1');
@@ -117,7 +119,7 @@ module.exports = function(router) {
 
 	    function(callback){
         conversation.message( message, function(err, data) {
-          console.log(">>>>> 2. message response from watson".green);
+          console.log(">>>>> 2. RECEIVE RESPONSE FROM WATSON".green);
 
           if ( err )  {
             return res.status( err.code || 500 ).json( err );
@@ -127,8 +129,17 @@ module.exports = function(router) {
 
           req.bag.message = message;
           req.bag.data = data;
-          console.log({message: message})
-          console.log(JSON.stringify(data));
+          console.log("----Input".green)
+          console.log(JSON.stringify(data.input));
+          console.log("----Output".green)
+          console.log(JSON.stringify(data.output.text[0]));
+          console.log("----Intent".green)
+          console.log(JSON.stringify(data.intents[0]));
+
+          console.log("----Context".green)
+          console.log(JSON.stringify(data.context));
+
+          console.log("--------------------------------------------".green)
 
 				 callback(null, 'step2');
 			   })
@@ -141,10 +152,10 @@ module.exports = function(router) {
 	    function(callback){
         getReplyToIntent(req, function(err, reply){
 
-          console.log(">>>>> 3. reply to intent".green);
+          console.log(">>>>> 3. REPLY BASED ON INTENT ANALYSIS".green);
           console.log({reply: reply})
           req.bag.text = reply;
-
+          console.log("--------------------------------------------".green)
         callback(null, 'step3');
 
         })
@@ -156,9 +167,9 @@ module.exports = function(router) {
     function(callback){
       buildChatMessage(req, function(){
 
-        console.log(">>>>> 4. build message".green);
+        console.log(">>>>> 4. BUILD AND SEND REPLY FROM WATSON".green);
         console.log({buildMessage: buildMessageToSend})
-
+        console.log("--------------------------------------------".green)
       callback(null, 'step4');
 
       })
