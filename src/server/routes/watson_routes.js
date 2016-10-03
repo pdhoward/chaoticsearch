@@ -131,10 +131,32 @@ module.exports = function(router) {
           req.bag.data = data;
           console.log("----Input".green)
           console.log(JSON.stringify(data.input));
-          console.log("----Output".green)
-          console.log(JSON.stringify(data.output.text[0]));
+
+          var i;
+
+          console.log("----Output text".green)
+          console.log("# output text in array = " + data.output.text.length)
+          for (i=0; i < data.output.text.length; i++) {
+              console.log(JSON.stringify(data.output.text[i]));
+            }
+
+          console.log("----Output nodes visited".green)
+          console.log("# nodes visited in array = " + data.output.nodes_visited.length)
+          for (i=0; i < data.output.nodes_visited.length; i++) {
+              console.log(JSON.stringify(data.output.nodes_visited[i]));
+            }
+
           console.log("----Intent".green)
-          console.log(JSON.stringify(data.intents[0]));
+          console.log("# intents in array = " + data.intents.length)
+          for (i=0; i < data.intents.length; i++) {
+              console.log(JSON.stringify(data.intents[i]));
+            }
+
+          console.log("----Entities".green)
+          console.log("# entities in array = " + data.entities.length)
+          for (i=0; i < data.entities.length; i++) {
+              console.log(JSON.stringify(data.entities[i]));
+            }
 
           console.log("----Context".green)
           console.log(JSON.stringify(data.context));
@@ -215,7 +237,7 @@ module.exports = function(router) {
         }
 
         console.log(results);
-        console.log(JSON.stringify(req.bag))
+//        console.log(JSON.stringify(req.bag))
 
         next();
 		}

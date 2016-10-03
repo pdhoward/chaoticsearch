@@ -90,8 +90,9 @@ const sessionParms = {
       path: '/',
       domain: 'localhost',
       secure: false,
-      httpOnly: false,
-      maxAge: 1000}
+      httpOnly: false
+//      maxAge: 1000
+      }
   }
 
 
