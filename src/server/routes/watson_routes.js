@@ -158,6 +158,9 @@ module.exports = function(router) {
               console.log(JSON.stringify(data.entities[i]));
             }
 
+          console.log("----Gold Node Status".green)
+          console.log(JSON.stringify(data.context.start_server_search));
+
           console.log("----Context".green)
           console.log(JSON.stringify(data.context));
 
@@ -174,11 +177,21 @@ module.exports = function(router) {
 	    function(callback){
         getReplyToIntent(req, function(err, reply){
 
+          if (req.bag.data.context.start_server_search) {
+            console.log(">>>>> 3. GOOGLE API REPLY".green);
+            console.log({totalitems: reply.data.totalItems})
+            req.bag.text = reply.data.items[0].desciption;
+            console.log("--------------------------------------------".green)
+          callback(null, 'step3');
+          }
+          else {
+
           console.log(">>>>> 3. REPLY BASED ON INTENT ANALYSIS".green);
           console.log({reply: reply})
           req.bag.text = reply;
           console.log("--------------------------------------------".green)
         callback(null, 'step3');
+            }
 
         })
 	  },
@@ -258,7 +271,9 @@ function setWorkSpaceID(input, cb) {
   message.workspace_id = workspace;
 
   if ( ! message.workspace_id || message.workspace_id === 'workspace-id' ) {
-      return res.status( 500 );
+//      return res.status( 500 );
+        var err = 500;
+        cb(err, null );
     };
 
   cb(null, message.workspace_id);
@@ -313,18 +328,19 @@ function updateMessage(input, response) {
 function getReplyToIntent(req, cb) {
 
     var replyText = null;
-    const intentType = req.bag.data.intents[0].intent;
+    var intentType = "NOACTION";
+
+    if (req.bag.data.context.start_server_search) {
+      intentType = "SEARCHTITLE";
+    }
+    else {
+      intentType = "NOACTION";
+    }
 
     switch (intentType) {
-        case "INTENT_TYPE_DIALOG_EMAIL":
-            break;
-        case "INTENT_TYPE_DIALOG_MEETING":
-            break;
-        case "INTENT_TYPE_DIALOG_SMS":
-            break;
-        case "findtitle":
+        case "SEARCHTITLE":
             const URL = 'https://www.googleapis.com/books/v1/volumes?q=';
-            axios(URL + req.bag.data.context.book, {
+            axios(URL + req.bag.data.context.search_arg, {
               method: 'get',
               headers: {'Content-Type': 'application/json',
                         'Cache-Control': 'no-cache'
@@ -333,21 +349,19 @@ function getReplyToIntent(req, cb) {
               .then(res => res.json())
               .then(json => {
                 if (json.error) {
+                  console.log(">>>>GOOGLE ERROR<<<<")
+                  console.log(JSON.stringify(json.error))
                   cb(json.error, null);}
                 else {
+                  console.log(">>>>GOOGLE SUCCESS<<<<")
+                  console.log(JSON.stringify(res.data.totalItems));
+                  console.log(JSON.stringify(res.data.items[0]));
                   cb(null, res.data) }
               })
               .catch((json) => {
                 cb(json.error, null);
               });
 
-            break;
-
-        case "respond-calculation-numeric":
-            replyText = CalculationPipeline.numericCalculation(userText);
-            break;
-        case "respond-calculation-conversion":
-            replyText = CalculationPipeline.conversionCalculation(userText);
             break;
 
         default:
