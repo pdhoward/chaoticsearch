@@ -83,8 +83,7 @@ function saveWelcomeMessage() {
   WelcomeMessage.text = MessageContent;
   WelcomeMessage.user = watsonUserID;
   WelcomeMessage.id = `${Date.now()}${uuid.v4()}`;
-  WelcomeMessage.time = moment.utc([1900, 0, 1]).format('lll');
-  console.log({time: WelcomeMessage.time})
+  WelcomeMessage.time = moment.utc([1900, 0, 1]).format('lll');  
 
   //prepare to save user chat message to mongodb collection
   const newChatMessage = new ChatMessage(WelcomeMessage);

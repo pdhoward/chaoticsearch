@@ -50,6 +50,15 @@ const buildMessageToSend = {
 
 }
 
+var responseObject = {
+  responseBuildID: "",
+  responseTime: 0,
+  responseText: ""
+};
+
+var responseArray = [];
+
+
 const watsonUserID = {
   username: 'Watson',
   socketID: '/#testid'
@@ -170,78 +179,35 @@ module.exports = function(router) {
 			   })
 	   },
 
-        //////////////////////////////////////
-        ///// analyze the intent        /////
-        ////////////////////////////////////
+        //////////////////////////////////////////////////////////////////////
+        ///// analyze the intent. If complex node (ie intent is search)  /////
+        ///// work is conducted and the results are appended to         /////
+        ///// the output array with other messages received from watson /////
+        ///// This sets up next step for emitting all watson responses /////
+        ////////////////////////////////////////////////////////////////////
 
 	    function(callback){
-        getReplyToIntent(req, function(err, reply){
+        getReplyToIntent(req, function(err){
 
-          if (req.bag.data.context.start_server_search) {
             console.log(">>>>> 3. GOOGLE API REPLY".green);
-            console.log({totalitems: reply.data.totalItems})
-            req.bag.text = reply.data.items[0].desciption;
-            console.log("--------------------------------------------".green)
-          callback(null, 'step3');
-          }
-          else {
 
-          console.log(">>>>> 3. REPLY BASED ON INTENT ANALYSIS".green);
-          console.log({reply: reply})
-          req.bag.text = reply;
-          console.log("--------------------------------------------".green)
-        callback(null, 'step3');
-            }
-
+            callback(null, 'step3');
         })
-	  },
+	     },
 
-      ///////////////////////////////////////////
-      ///// build chat message to respond  /////
-      /////////////////////////////////////////
+      ////////////////////////////////////////////////////////////////////
+      //////   build, send and save chat messages (may be multiple) /////
+      /////            from Watson in response                      /////
+      ///////////////////////////////////////////////////////////////////
     function(callback){
-      buildChatMessage(req, function(){
+      handleChatMessages(req, function(){
 
-        console.log(">>>>> 4. BUILD AND SEND REPLY FROM WATSON".green);
-        console.log({buildMessage: buildMessageToSend})
-        console.log("--------------------------------------------".green)
-      callback(null, 'step4');
-
-      })
-    },
-
-      //////////////////////////////////////////
-      ///// broadcast message on sockets  /////
-      ////////////////////////////////////////
-    function(callback){
-      broadcastChatMessage(req, function(){
-
-      callback(null, 'step5');
-
-      })
-    },
-
-    //////////////////////////////////////
-    ///// save watson response on db /////
-    ////////////////////////////////////
-    function(callback){
-      saveWatsonMessage(req, function(){
-
-      callback(null, 'step6');
-
-      })
-    },
-
-    //////////////////////////////////////
-    ///// save watson chat on db    /////
-    ////////////////////////////////////
-    function(callback){
-      saveChatMessage(req, function(){
-
-      callback(null, 'step7');
+        console.log(">>>>> 4.  SEND REPLIES FROM WATSON".green);
+        callback(null, 'step4');
 
       })
     }
+
   ],
       function(err, results){
         if (err) {
@@ -327,14 +293,10 @@ function updateMessage(input, response) {
 
 function getReplyToIntent(req, cb) {
 
-    var replyText = null;
     var intentType = "NOACTION";
 
     if (req.bag.data.context.start_server_search) {
       intentType = "SEARCHTITLE";
-    }
-    else {
-      intentType = "NOACTION";
     }
 
     switch (intentType) {
@@ -346,67 +308,173 @@ function getReplyToIntent(req, cb) {
                         'Cache-Control': 'no-cache'
                     }
                 })
-              .then(res => res.json())
-              .then(json => {
-                if (json.error) {
-                  console.log(">>>>GOOGLE ERROR<<<<")
-                  console.log(JSON.stringify(json.error))
-                  cb(json.error, null);}
-                else {
-                  console.log(">>>>GOOGLE SUCCESS<<<<")
-                  console.log(JSON.stringify(res.data.totalItems));
-                  console.log(JSON.stringify(res.data.items[0]));
-                  cb(null, res.data) }
+              .then(function(response){
+                console.log(">>>>GOOGLE SUCCESS<<<<")
+
+                // store google search result on session
+                req.session.search_result_object = response;
+
+                parseBookSearchResult(req, response, function(){   // load array with watson and custom messages
+                  cb(null);
+                })
               })
-              .catch((json) => {
-                cb(json.error, null);
+              .catch(function(error){
+                console.log(">>>>GOOGLE FAILURE<<<<")
+                console.log(error.response.data);
+                console.log(error.response.status);
+                console.log(error.response.headers);
+                console.log(error.message);
+                cb(error);
               });
 
             break;
 
         default:
-            replyText = req.bag.data.output.text[0];
+            parseContextOutput(req)             // just load array with Watson messages (maybe be multiples)
+            cb(null)
             break;
     }
-
-    cb(null, replyText)
 }
 
 
 
-////////////////////////////////////////////////////
-//////////// Build message format for sockets//////////
-////////////////////////////////////////////////////
+////////////////////////////////////////////////////////
+//////////// Parse Google Book Search Results //////////
+//////////// And Load Some Messages for Chat //////////
+//////////////////////////////////////////////////////
 
-function buildChatMessage(req, cb) {
+function parseBookSearchResult(req, response, cb) {
 
-  //prepare message to broadcast from watson once response is received
+  responseArray = [];                                                  // intialize
 
-  buildMessageToSend.channelID = req.bag.channelID;
-  buildMessageToSend.user = watsonUserID;
-  buildID = `${Date.now()}${uuid.v4()}`;
-  buildMessageToSend.id = buildID;
-  buildMessageToSend.time = moment.utc().format('lll');
-  buildMessageToSend.text = req.bag.text;
+  var i = 0;
+  var x = req.bag.data.output.text.length;                            // number of output messages from watson
+  var g = response.data.items.length;                                 // confirm that json object has data
+
+  var searchBookArg = req.bag.data.context.search_arg;
+  var totalBooksFound = response.data.totalItems;
+
+
+  if (g >= 0) {
+    var title =           response.data.items[0].volumeInfo.title
+    var textSnippet =     response.data.items[0].searchInfo.textSnippet;
+    var pageCount =       response.data.items[0].volumeInfo.pagecount;
+    var averageRating =   response.data.items[0].volumeInfo.averageRating;
+    var buyLink =         response.data.items[0].volumeInfo.buyLink;
+    var y =               response.data.items[0].volumeInfo.authors.length // determine number of authors
+    }
+
+  if (y >= 0) {
+    var leadAuthor =      response.data.items[0].volumeInfo.authors[0]
+  }
+
+  var bookSearchMessage1 = `I retrieved a total of ${totalBooksFound} publications using the search argument ${searchBookArg}`
+  var bookSearchMessage2 = `The top recommendation is ${title} written by ${leadAuthor}. It has ${pageCount} pages with an average rating of ${averageRating}.
+  ${textSnippet}`
+  var bookSearchMessage3 = `Would you like me to email you the top 10 recommendations?`
+
+  for (i=0; i < x; i++) {
+        responseObject.responseBuildID = `${Date.now()}${uuid.v4()}`;
+        responseObject.responseTime = moment.utc().format('lll');
+        responseObject.responseText = req.bag.data.output.text[i];
+        responseArray.push  = responseObject;
+        console.log(">>>>Search Conducted LOADING RESPONSE ARRAY".green);
+        console.log(JSON.stringify(responseObject));
+        console.log(responseArray[i]);
+      }
+
+  // load custom messages for emitting
+  var bookSearchMessageArray = [];
+
+  bookSearchMessageArray.push = bookSearchMessage1;
+  bookSearchMessageArray.push = bookSearchMessage2;
+  bookSearchMessageArray.push = bookSearchMessage3;
+
+  var k = bookSearchMessageArray.length;
+  for (i=0; i < k; i++) {
+        responseObject.responseBuildID = `${Date.now()}${uuid.v4()}`;
+        responseObject.responseTime = moment.utc().format('lll');
+        responseObject.responseText = bookSearchMessageArray[i]
+        responseArray.push  = responseObject;
+        console.log(JSON.stringify(responseArray[i]))
+      }
 
   cb();
   }
+
+
+
+  ////////////////////////////////////////////////////////
+  //////////// load messages into a response array////////
+  //////////////////////////////////////////////////////
+
+  function parseContextOutput(req) {
+
+    responseArray = [];                                                  // intialize
+
+    var x = req.bag.data.output.text.length;                            // number of output messages from watson
+    var i = 0;
+
+    for (i=0; i < x; i++) {
+          responseObject.responseBuildID = `${Date.now()}${uuid.v4()}`;
+          responseObject.responseTime = moment.utc().format('lll');
+          responseObject.responseText = req.bag.data.output.text[i];
+          responseArray.push  = responseObject;
+          console.log(">>>>No Search Conducted LOADING RESPONSE ARRAY".green);
+          console.log(JSON.stringify(responseObject))
+          console.log(responseArray[i]);
+        }
+
+    return;
+    }
+
+
+
+///////////////////////////////////////////////////////
+//////////// Build message format for sockets//////////
+//////////////////////////////////////////////////////
+
+function handleChatMessages(req, cb) {
+
+  //prepare message and response array to broadcast from response from watson
+  // note that the array is needed because there may be multiple outputs from watson conversation
+  // in addition, when the gold node is processed (ie seaching) a complex response is formulated
+
+  var messageCount = responseArray.length;
+  var i = 0;
+
+  for (i=0; i < messageCount; i++) {
+
+  buildMessageToSend.channelID = req.bag.channelID;
+  buildMessageToSend.user = watsonUserID;
+  buildMessageToSend.id = responseArray[i].responseBuildID;
+  buildMessageToSend.time = responseArray[i].responseTime;
+  buildMessageToSend.text = responseArray[i].responseText;
+
+  broadcastChatMessage(req);
+  saveWatsonMessage(req);
+  saveChatMessage(req);
+
+    }
+    cb();
+  }
+
 
 ////////////////////////////////////////////////////
 //////////// Broadcast response via sockets//////////
 ////////////////////////////////////////////////////
 
-function broadcastChatMessage(req, cb) {
+function broadcastChatMessage(req) {
 
     var io = req.app.get('socketio');
 
     io.to(buildMessageToSend.channelID).emit('new bc message', buildMessageToSend);
-    cb()
+    return;
   }
   ///////////////////////////////////////////////////////
   //////////// save watson response a on mongo//////////
   /////////////////////////////////////////////////////
-function saveWatsonMessage(req, cb){
+function saveWatsonMessage(req){
 
   //prepare to save the watson chat response to mongodb collection
   const newwatsonResponse = new WatsonResponse(req.bag.data);
@@ -415,13 +483,13 @@ function saveWatsonMessage(req, cb){
       if (err) {
         console.log(err);
         return res.status(500).json({msg: 'internal server error'}); }
-      cb()
+      return;
     });
   }
   ///////////////////////////////////////////////////////
   //////////// save chat message on mongo     //////////
   /////////////////////////////////////////////////////
-function saveChatMessage(req, cb){
+function saveChatMessage(req){
 
     //prepare to save user chat message to mongodb collection
     const newChatMessage = new ChatMessage(buildMessageToSend);
@@ -430,7 +498,7 @@ function saveChatMessage(req, cb){
         if (err) {
           console.log(err);
           return res.status(500).json({msg: 'internal server error'}); }
-        cb()
+        return;
       });
     }
 ////////////////////////////////////////////////////////////////
