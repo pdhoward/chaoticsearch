@@ -50,13 +50,6 @@ const buildMessageToSend = {
 
 }
 
-var responseObject = {
-  responseBuildID: "",
-  responseTime: 0,
-  responseText: ""
-};
-
-var responseArray = [];
 
 
 const watsonUserID = {
@@ -189,7 +182,7 @@ module.exports = function(router) {
 	    function(callback){
         getReplyToIntent(req, function(err){
 
-            console.log(">>>>> 3. GOOGLE API REPLY".green);
+            console.log(">>>>> 3. Intent was Analyzed ".green);
 
             callback(null, 'step3');
         })
@@ -202,7 +195,7 @@ module.exports = function(router) {
     function(callback){
       handleChatMessages(req, function(){
 
-        console.log(">>>>> 4.  SEND REPLIES FROM WATSON".green);
+        console.log(">>>>> 4.  Replies Sent by Watson".green);
         callback(null, 'step4');
 
       })
@@ -214,10 +207,7 @@ module.exports = function(router) {
           console.log("error in async sequence")
           return next(err);
         }
-
         console.log(results);
-//        console.log(JSON.stringify(req.bag))
-
         next();
 		}
   )
@@ -309,21 +299,23 @@ function getReplyToIntent(req, cb) {
                     }
                 })
               .then(function(response){
-                console.log(">>>>GOOGLE SUCCESS<<<<")
+                console.log(">>>>GOOGLE SUCCESS<<<<".green)
 
                 // store google search result on session
-                req.session.search_result_object = response;
+  //              req.session.search_result_object = response;
 
-                parseBookSearchResult(req, response, function(){   // load array with watson and custom messages
+                parseBookSearchResult(req, response, function(){      // load array with watson and custom messages
+
+                  console.log("COMPLETED PARSE SEARCH RESULTS".green)
+
                   cb(null);
                 })
               })
               .catch(function(error){
                 console.log(">>>>GOOGLE FAILURE<<<<")
-                console.log(error.response.data);
-                console.log(error.response.status);
-                console.log(error.response.headers);
-                console.log(error.message);
+                console.log(" Status = " + error.response.status);
+                console.log(" Headers = " + error.response.headers);
+                console.log(" Message = " + error.message);
                 cb(error);
               });
 
@@ -345,6 +337,18 @@ function getReplyToIntent(req, cb) {
 
 function parseBookSearchResult(req, response, cb) {
 
+  console.log(">>>>Complex Route with Google Search".green);
+
+  /*
+  var responseObject = {
+    responseBuildID: "",
+    responseTime: 0,
+    responseText: ""
+  };
+  */
+
+  var responseArray = [];
+
   responseArray = [];                                                  // intialize
 
   var i = 0;
@@ -354,11 +358,12 @@ function parseBookSearchResult(req, response, cb) {
   var searchBookArg = req.bag.data.context.search_arg;
   var totalBooksFound = response.data.totalItems;
 
+  // excerpt pieces of data from 1st entry of JSON object retrieved from Google search
 
   if (g >= 0) {
     var title =           response.data.items[0].volumeInfo.title
     var textSnippet =     response.data.items[0].searchInfo.textSnippet;
-    var pageCount =       response.data.items[0].volumeInfo.pagecount;
+    var pageCount =       response.data.items[0].volumeInfo.pageCount;
     var averageRating =   response.data.items[0].volumeInfo.averageRating;
     var buyLink =         response.data.items[0].volumeInfo.buyLink;
     var y =               response.data.items[0].volumeInfo.authors.length // determine number of authors
@@ -368,36 +373,44 @@ function parseBookSearchResult(req, response, cb) {
     var leadAuthor =      response.data.items[0].volumeInfo.authors[0]
   }
 
-  var bookSearchMessage1 = `I retrieved a total of ${totalBooksFound} publications using the search argument ${searchBookArg}`
-  var bookSearchMessage2 = `The top recommendation is ${title} written by ${leadAuthor}. It has ${pageCount} pages with an average rating of ${averageRating}.
-  ${textSnippet}`
-  var bookSearchMessage3 = `Would you like me to email you the top 10 recommendations?`
+  // build custom messages for reponse to the user
 
+  var bookSearchMessage1 = `I retrieved a total of ${totalBooksFound} publications based on your request > ${searchBookArg}`;
+  var bookSearchMessage2 = `The top recommendation is ${title} written by ${leadAuthor}. It has ${pageCount} pages with an average rating of ${averageRating}.`
+  var bookSearchMessage3 = `${textSnippet}`;
+  var bookSearchMessage4 = `Would you like me to email you the top 10 recommendations?`;
+
+
+  // first load the response array with outputs received from Watson Conversation
   for (i=0; i < x; i++) {
+        var responseObject = {};
         responseObject.responseBuildID = `${Date.now()}${uuid.v4()}`;
         responseObject.responseTime = moment.utc().format('lll');
         responseObject.responseText = req.bag.data.output.text[i];
-        responseArray.push  = responseObject;
-        console.log(">>>>Search Conducted LOADING RESPONSE ARRAY".green);
-        console.log(JSON.stringify(responseObject));
-        console.log(responseArray[i]);
+        responseArray.push(responseObject);
       }
 
-  // load custom messages for emitting
+  // now load load custom messages into a temporary array
   var bookSearchMessageArray = [];
 
-  bookSearchMessageArray.push = bookSearchMessage1;
-  bookSearchMessageArray.push = bookSearchMessage2;
-  bookSearchMessageArray.push = bookSearchMessage3;
-
+  bookSearchMessageArray.push(bookSearchMessage1);
+  bookSearchMessageArray.push(bookSearchMessage2);
+  bookSearchMessageArray.push(bookSearchMessage3);
+  bookSearchMessageArray.push(bookSearchMessage4);
   var k = bookSearchMessageArray.length;
-  for (i=0; i < k; i++) {
+  var n = 0;
+
+  // Now iterate over the temporary array and load the response array with custom messages. This completes the dialogue response
+
+  for (n=0; n < k; n++) {
+        var responseObject = {};
         responseObject.responseBuildID = `${Date.now()}${uuid.v4()}`;
         responseObject.responseTime = moment.utc().format('lll');
-        responseObject.responseText = bookSearchMessageArray[i]
-        responseArray.push  = responseObject;
-        console.log(JSON.stringify(responseArray[i]))
+        responseObject.responseText = bookSearchMessageArray[n];
+        responseArray.push(responseObject);
       }
+
+  req.bag.responseArray = responseArray;
 
   cb();
   }
@@ -410,20 +423,32 @@ function parseBookSearchResult(req, response, cb) {
 
   function parseContextOutput(req) {
 
+    console.log(">>>>Straight Route No Google Search".green);
+
+  /*
+    var responseObject = {
+      responseBuildID: "",
+      responseTime: 0,
+      responseText: ""
+    };
+*/
+    var responseArray = [];
+
     responseArray = [];                                                  // intialize
 
     var x = req.bag.data.output.text.length;                            // number of output messages from watson
     var i = 0;
 
     for (i=0; i < x; i++) {
+          var responseObject = {};
           responseObject.responseBuildID = `${Date.now()}${uuid.v4()}`;
           responseObject.responseTime = moment.utc().format('lll');
           responseObject.responseText = req.bag.data.output.text[i];
-          responseArray.push  = responseObject;
-          console.log(">>>>No Search Conducted LOADING RESPONSE ARRAY".green);
-          console.log(JSON.stringify(responseObject))
-          console.log(responseArray[i]);
-        }
+          responseArray.push(responseObject);
+
+        };
+
+    req.bag.responseArray = responseArray;
 
     return;
     }
@@ -436,46 +461,66 @@ function parseBookSearchResult(req, response, cb) {
 
 function handleChatMessages(req, cb) {
 
+  console.log(">>>>>>>>>>>>ENTERED HANDLE CHAT MESSAGES <<<<<<<<<<<<<<")
+
   //prepare message and response array to broadcast from response from watson
   // note that the array is needed because there may be multiple outputs from watson conversation
   // in addition, when the gold node is processed (ie seaching) a complex response is formulated
 
-  var messageCount = responseArray.length;
+  var messageCount = req.bag.responseArray.length;
   var i = 0;
 
   for (i=0; i < messageCount; i++) {
-
+  console.log(">>>>>>Begin Iteration # " + i );
   buildMessageToSend.channelID = req.bag.channelID;
   buildMessageToSend.user = watsonUserID;
-  buildMessageToSend.id = responseArray[i].responseBuildID;
-  buildMessageToSend.time = responseArray[i].responseTime;
-  buildMessageToSend.text = responseArray[i].responseText;
+  buildMessageToSend.id = req.bag.responseArray[i].responseBuildID;
+  buildMessageToSend.time = req.bag.responseArray[i].responseTime;
+  buildMessageToSend.text = req.bag.responseArray[i].responseText;
 
-  broadcastChatMessage(req);
-  saveWatsonMessage(req);
-  saveChatMessage(req);
 
-    }
-    cb();
-  }
+        ////////////////////////////////////////
+        ///// Broadcast and Save Messages /////
+        //////////////////////////////////////
+
+
+            broadcastChatMessage(req, function() {
+              console.log("Message Broadcasted".green);
+                saveChatMessage(req, function(){
+                  console.log("Chat Message Saved".green);
+
+                })
+  			    })
+          }
+            saveWatsonMessage(req, function() {
+              console.log("Watson Message Saved".green);
+            cb();
+            })
+      }
 
 
 ////////////////////////////////////////////////////
 //////////// Broadcast response via sockets//////////
 ////////////////////////////////////////////////////
 
-function broadcastChatMessage(req) {
+function broadcastChatMessage(req, cb) {
+
+    console.log(">>>>>>>Entered Broadcast<<<<<<<<<<<".green)
+    console.log({message: buildMessageToSend})
 
     var io = req.app.get('socketio');
 
     io.to(buildMessageToSend.channelID).emit('new bc message', buildMessageToSend);
-    return;
+    cb()
   }
   ///////////////////////////////////////////////////////
   //////////// save watson response a on mongo//////////
   /////////////////////////////////////////////////////
-function saveWatsonMessage(req){
+function saveWatsonMessage(req, cb){
 
+  console.log("entered Save Watson Message".green)
+  console.log({bag: req.bag.data})
+/*
   //prepare to save the watson chat response to mongodb collection
   const newwatsonResponse = new WatsonResponse(req.bag.data);
   // save watson messages
@@ -485,12 +530,17 @@ function saveWatsonMessage(req){
         return res.status(500).json({msg: 'internal server error'}); }
       return;
     });
+*/
+  cb()
   }
   ///////////////////////////////////////////////////////
   //////////// save chat message on mongo     //////////
   /////////////////////////////////////////////////////
-function saveChatMessage(req){
+function saveChatMessage(req, cb){
 
+    console.log("entered Save Chat Message".green)
+
+    /*
     //prepare to save user chat message to mongodb collection
     const newChatMessage = new ChatMessage(buildMessageToSend);
 
@@ -500,5 +550,7 @@ function saveChatMessage(req){
           return res.status(500).json({msg: 'internal server error'}); }
         return;
       });
+      */
+    cb()
     }
 ////////////////////////////////////////////////////////////////

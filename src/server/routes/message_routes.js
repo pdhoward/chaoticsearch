@@ -7,6 +7,8 @@ import colors                 from 'colors'
 import Message                from '../models/Message';
 import bodyparser             from 'body-parser';
 
+var util = require('util');
+
 
 module.exports = function(router) {
   router.use(bodyparser.json());
@@ -30,7 +32,7 @@ module.exports = function(router) {
                 if(err) {
                     console.log(err);
                     return res.status(500).json({msg: 'internal server error'});
-                  }              
+                  }
                 res.json(data);
 
             });
@@ -38,15 +40,19 @@ module.exports = function(router) {
 
   //post a new message to db
   router.post('/newmessage', function(req, res) {
+
     var newMessage = new Message(req.body);
 
     newMessage.save(function (err, data) {
       if(err) {
+        console.log(">>>>>ERROR IN MESSAGE ROUTER<<<<<<".green)
         console.log(err);
         return res.status(500).json({msg: 'internal server error'});
       }
-      res.json(data);
 
+      console.log(">>>>>>>>>>>>message posted to db  <<<<<<<<<<<<".green)
+       res.json(data);
     });
   });
+
 }
