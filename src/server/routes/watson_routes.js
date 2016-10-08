@@ -520,7 +520,7 @@ function saveWatsonMessage(req, cb){
 
   console.log("entered Save Watson Message".green)
   console.log({bag: req.bag.data})
-/*
+
   //prepare to save the watson chat response to mongodb collection
   const newwatsonResponse = new WatsonResponse(req.bag.data);
   // save watson messages
@@ -530,7 +530,7 @@ function saveWatsonMessage(req, cb){
         return res.status(500).json({msg: 'internal server error'}); }
       return;
     });
-*/
+
   cb()
   }
   ///////////////////////////////////////////////////////
@@ -540,7 +540,7 @@ function saveChatMessage(req, cb){
 
     console.log("entered Save Chat Message".green)
 
-    /*
+
     //prepare to save user chat message to mongodb collection
     const newChatMessage = new ChatMessage(buildMessageToSend);
 
@@ -550,7 +550,7 @@ function saveChatMessage(req, cb){
           return res.status(500).json({msg: 'internal server error'}); }
         return;
       });
-      */
+      
     cb()
     }
 ////////////////////////////////////////////////////////////////

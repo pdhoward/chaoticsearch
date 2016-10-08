@@ -90,9 +90,8 @@ const sessionParms = {
       path: '/',
 //      domain: 'localhost',
       secure: false,
-      httpOnly: false
-//      maxAge: 1000
-      }
+      httpOnly: false,
+      maxAge: 1000*60*24}
   }
 
 
@@ -106,16 +105,19 @@ app.use(session(sessionParms));
 app.use(passport.initialize());
 app.use(passport.session());
 
+
+///////////////////////////////////////////////////////////////////////
+//////////        use secure cookies in production          ///////////
+/////////    cookie.secure requires https enabled website   //////////
+/////////              disable for testing                  //////////
+/////////    use trust proxy if using nodejs behind ngnx    //////////
+//////////////////////////////////////////////////////////////////////
 /*
-//allows us to use secure cookies in production but still test in dev
-// note cookie.secure is recommended but requires https enabled website
-// trust proxy required if using nodejs behind a proxy (like ngnx)
 if (app.get('env') === 'production') {
     app.set('trust proxy', 1) // trust first proxy
     sessionParms.cookie.secure = true // serve secure cookies
    }
 */
-
 ///////////////////////////////////////////////////////////////////////
 /////////////////// chaoticbot alerts on errors //////////////////////
 //////////////////////////////////////////////////////////////////////
@@ -135,6 +137,7 @@ process.on('uncaughtException', function (er) {
        process.exit(1)
     })
   })
+
 
 
 //////////////////////////////////////////////////////////////////////////
