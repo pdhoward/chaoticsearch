@@ -43,6 +43,9 @@ module.exports = function(router) {
 
     var newMessage = new Message(req.body);
 
+    // establish ownership of the message being posted
+    newMessage.owner = req.session.owner;
+
     newMessage.save(function (err, data) {
       if(err) {
         console.log(">>>>>ERROR IN MESSAGE ROUTER<<<<<<".green)
@@ -50,7 +53,9 @@ module.exports = function(router) {
         return res.status(500).json({msg: 'internal server error'});
       }
 
-      console.log(">>>>>>>>>>>>message posted to db  <<<<<<<<<<<<".green)
+      console.log(">>>>>>>>>>>>message posted to db  <<<<<<<<<<<<".green);
+      console.log("newMessage = " + newMessage.user.username + " " + newMessage.text + " " + newMessage.owner + " " + req.session.owner);
+      console.log(JSON.stringify(req.session));
        res.json(data);
     });
   });

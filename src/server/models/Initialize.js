@@ -26,10 +26,7 @@ const watsonUserID = {
 }
 
 // note the ECMA 6 backtick for line breaks
-const MessageContent = `Thank you for joining this demonstration of Intelligent Agents and Conversational UIs.
- Watson holds simultaneous discussions with all users on the platform. So pick a channel and chat.
- Please note that all discussion threads are visible to everyone. You will see a list of other active users, if any, in the sidebar.
- Use this channel for any questions you have about how ChaoticBots can help your business `
+const MessageContent = `Book search demonstrates intelligent messaging`
 
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -83,7 +80,7 @@ function saveWelcomeMessage() {
   WelcomeMessage.text = MessageContent;
   WelcomeMessage.user = watsonUserID;
   WelcomeMessage.id = `${Date.now()}${uuid.v4()}`;
-  WelcomeMessage.time = moment.utc([1900, 0, 1]).format('lll');  
+  WelcomeMessage.time = moment.utc([1900, 0, 1]).format('lll');
 
   //prepare to save user chat message to mongodb collection
   const newChatMessage = new ChatMessage(WelcomeMessage);

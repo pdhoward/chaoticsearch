@@ -2,7 +2,7 @@
 //////////////////////////////////////////////////////
 /////////////USER AUTHENTICATION/////////////////////
 ////////////////////////////////////////////////////
-
+import OldMessages              from '../models/Message';
 import transport                from '../../../config/gmail';
 import bodyparser               from 'body-parser';
 import colors                   from 'colors';
@@ -50,7 +50,19 @@ module.exports = function loadUserRoutes(router, passport) {
             if (error) console.log(error);
             console.log("User login. Gmail notification sent ".green);
           })
-        })
+
+      // drop messages from prior searches for returning user. Note that req.owner is the user who owns all messages recorded with watson
+
+      req.session.owner = req.user.local.username;
+
+      OldMessages.collection.remove({'user.username': req.session.owner}, function(err, obj) {
+        if(err) {
+          console.log(err);
+          }
+        console.log("messages deleted for user " + req.session.owner + " n = " + obj.result.n);
+        console.log(JSON.stringify(req.session));
+        });
+      })
 
     });
 

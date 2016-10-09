@@ -7,7 +7,8 @@ var messageSchema = mongoose.Schema({
     channelID: String,
     text: String,
     user: Object,
-    time: String
+    time: String,
+    owner: String
 });
 
 module.exports = mongoose.model('Message', messageSchema);
