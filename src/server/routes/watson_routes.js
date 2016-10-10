@@ -85,15 +85,9 @@ module.exports = function(router) {
     };
 
 
-     console.log("--------- START OF NEW CHAT ----------".green);
-     console.log(">>>> user chat test <<<<<".green);
-     console.log({reqbody: req.body});
-     console.log("--------------------------------------------")
-
-
-           ////////////////////////////////////////////////////////////////////////
-          //////////// Process interaction with Watson and User Response //////////
-          /////////////////////////////////////////////////////////////////////////
+       ////////////////////////////////////////////////////////////////////////
+      //////////// Process interaction with Watson and User Response //////////
+      /////////////////////////////////////////////////////////////////////////
 
     req.bag = {}   // my stuff for async processing
 
@@ -105,68 +99,26 @@ module.exports = function(router) {
 
 	     function(callback){
           setWorkSpaceID(watsonMessage.channelID, function(err, result) {
-            console.log(">>>>> 1. Setup Workspace ID Based on Channel]".green);
-            console.log({channelID: watsonMessage.channelID},
-                        {workSpace: result});
-            console.log("--------------------------------------------".green)
             req.bag.workspace = result;
             req.bag.channelID = watsonMessage.channelID;
 				    callback(null, 'step1');
 			    })
 	      },
 
-        //////////////////////////////////////
-        ///// send user text to watson  /////
-        ////////////////////////////////////
+        /////////////////////////////////////////////////////////
+        ///// send user text to watson and capture response /////
+        ////////////////////////////////////////////////////////
 
 	    function(callback){
         conversation.message( message, function(err, data) {
-          console.log(">>>>> 2. RECEIVE RESPONSE FROM WATSON".green);
-
           if ( err )  {
             return res.status( err.code || 500 ).json( err );
           };
 
+          // collect key data for use in this session and this turn
           req.session.context = data.context;
-
           req.bag.message = message;
           req.bag.data = data;
-          console.log("----Input".green)
-          console.log(JSON.stringify(data.input));
-
-          var i;
-
-          console.log("----Output text".green)
-          console.log("# output text in array = " + data.output.text.length)
-          for (i=0; i < data.output.text.length; i++) {
-              console.log(JSON.stringify(data.output.text[i]));
-            }
-
-          console.log("----Output nodes visited".green)
-          console.log("# nodes visited in array = " + data.output.nodes_visited.length)
-          for (i=0; i < data.output.nodes_visited.length; i++) {
-              console.log(JSON.stringify(data.output.nodes_visited[i]));
-            }
-
-          console.log("----Intent".green)
-          console.log("# intents in array = " + data.intents.length)
-          for (i=0; i < data.intents.length; i++) {
-              console.log(JSON.stringify(data.intents[i]));
-            }
-
-          console.log("----Entities".green)
-          console.log("# entities in array = " + data.entities.length)
-          for (i=0; i < data.entities.length; i++) {
-              console.log(JSON.stringify(data.entities[i]));
-            }
-
-          console.log("----Gold Node Status".green)
-          console.log(JSON.stringify(data.context.start_server_search));
-
-          console.log("----Context".green)
-          console.log(JSON.stringify(data.context));
-
-          console.log("--------------------------------------------".green)
 
 				 callback(null, 'step2');
 			   })
@@ -182,8 +134,6 @@ module.exports = function(router) {
 	    function(callback){
         getReplyToIntent(req, function(err){
 
-            console.log(">>>>> 3. Intent was Analyzed ".green);
-
             callback(null, 'step3');
         })
 	     },
@@ -192,11 +142,10 @@ module.exports = function(router) {
       //////   build, send and save chat messages (may be multiple) /////
       /////            from Watson in response                      /////
       ///////////////////////////////////////////////////////////////////
-    function(callback){
-      handleChatMessages(req, function(){
+      function(callback){
+        handleChatMessages(req, function(){
 
-        console.log(">>>>> 4.  Replies Sent by Watson".green);
-        callback(null, 'step4');
+          callback(null, 'step4');
 
       })
     }
@@ -299,23 +248,15 @@ function getReplyToIntent(req, cb) {
                     }
                 })
               .then(function(response){
-                console.log(">>>>GOOGLE SUCCESS<<<<".green)
 
-                // store google search result on session
-  //              req.session.search_result_object = response;
-
+                // this is where store google search results could be stored on session
                 parseBookSearchResult(req, response, function(){      // load array with watson and custom messages
-
-                  console.log("COMPLETED PARSE SEARCH RESULTS".green)
 
                   cb(null);
                 })
               })
               .catch(function(error){
-                console.log(">>>>GOOGLE FAILURE<<<<")
-                console.log(" Status = " + error.response.status);
-                console.log(" Headers = " + error.response.headers);
-                console.log(" Message = " + error.message);
+                console.log(" Google Search Error Message = " + error.message);
                 cb(error);
               });
 
@@ -336,16 +277,6 @@ function getReplyToIntent(req, cb) {
 //////////////////////////////////////////////////////
 
 function parseBookSearchResult(req, response, cb) {
-
-  console.log(">>>>Complex Route with Google Search".green);
-
-  /*
-  var responseObject = {
-    responseBuildID: "",
-    responseTime: 0,
-    responseText: ""
-  };
-  */
 
   var responseArray = [];
 
@@ -423,15 +354,6 @@ function parseBookSearchResult(req, response, cb) {
 
   function parseContextOutput(req) {
 
-    console.log(">>>>Straight Route No Google Search".green);
-
-  /*
-    var responseObject = {
-      responseBuildID: "",
-      responseTime: 0,
-      responseText: ""
-    };
-*/
     var responseArray = [];
 
     responseArray = [];                                                  // intialize
@@ -461,7 +383,6 @@ function parseBookSearchResult(req, response, cb) {
 
 function handleChatMessages(req, cb) {
 
-  console.log(">>>>>>>>>>>>ENTERED HANDLE CHAT MESSAGES <<<<<<<<<<<<<<")
 
   //prepare message and response array to broadcast from response from watson
   // note that the array is needed because there may be multiple outputs from watson conversation
@@ -471,7 +392,6 @@ function handleChatMessages(req, cb) {
   var i = 0;
 
   for (i=0; i < messageCount; i++) {
-  console.log(">>>>>>Begin Iteration # " + i );
   buildMessageToSend.channelID = req.bag.channelID;
   buildMessageToSend.user = watsonUserID;
   buildMessageToSend.id = req.bag.responseArray[i].responseBuildID;
@@ -485,15 +405,14 @@ function handleChatMessages(req, cb) {
 
 
             broadcastChatMessage(req, function() {
-              console.log("Message Broadcasted".green);
+
                 saveChatMessage(req, function(){
-                  console.log("Chat Message Saved".green);
 
                 })
   			    })
           }
             saveWatsonMessage(req, function() {
-              console.log("Watson Message Saved".green);
+
             cb();
             })
       }
@@ -505,9 +424,6 @@ function handleChatMessages(req, cb) {
 
 function broadcastChatMessage(req, cb) {
 
-    console.log(">>>>>>>Entered Broadcast<<<<<<<<<<<".green)
-    console.log({message: buildMessageToSend})
-
     var io = req.app.get('socketio');
 
     io.to(buildMessageToSend.channelID).emit('new bc message', buildMessageToSend);
@@ -517,9 +433,6 @@ function broadcastChatMessage(req, cb) {
   //////////// save watson response on db     //////////
   /////////////////////////////////////////////////////
 function saveWatsonMessage(req, cb){
-
-  console.log("entered Save Watson Message".green)
-  console.log({bag: req.bag.data})
 
   //prepare to save the watson chat response to mongodb collection
   const newwatsonResponse = new WatsonResponse(req.bag.data);
@@ -537,8 +450,6 @@ function saveWatsonMessage(req, cb){
   //////////// save chat message on db        //////////
   /////////////////////////////////////////////////////
 function saveChatMessage(req, cb){
-
-    console.log("entered Save Chat Message".green)
 
     //prepare to save user chat message to mongodb collection
     const newChatMessage = new ChatMessage(buildMessageToSend);

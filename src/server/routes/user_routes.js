@@ -68,9 +68,7 @@ module.exports = function loadUserRoutes(router, passport) {
       OldMessages.collection.remove({'owner': req.session.owner}, function(err, obj) {
         if(err) {
           console.log(err);
-          }
-        console.log("messages deleted for user " + req.session.owner + " n = " + obj.result.n);
-        console.log(JSON.stringify(req.session));
+          }      
         });
       })
 

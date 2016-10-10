@@ -17,7 +17,8 @@ const WelcomeMessage = {
   channelID: initialChannelID,
   text: '',
   user: '',
-  time: Number
+  time: Number,
+  owner: 'admin'
 }
 
 const watsonUserID = {
