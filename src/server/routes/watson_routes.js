@@ -514,7 +514,7 @@ function broadcastChatMessage(req, cb) {
     cb()
   }
   ///////////////////////////////////////////////////////
-  //////////// save watson response a on mongo//////////
+  //////////// save watson response on db     //////////
   /////////////////////////////////////////////////////
 function saveWatsonMessage(req, cb){
 
@@ -534,15 +534,17 @@ function saveWatsonMessage(req, cb){
   cb()
   }
   ///////////////////////////////////////////////////////
-  //////////// save chat message on mongo     //////////
+  //////////// save chat message on db        //////////
   /////////////////////////////////////////////////////
 function saveChatMessage(req, cb){
 
     console.log("entered Save Chat Message".green)
 
-
     //prepare to save user chat message to mongodb collection
     const newChatMessage = new ChatMessage(buildMessageToSend);
+
+    // establish ownership of the message being posted
+    newChatMessage.owner = req.session.owner;
 
     newChatMessage.save(function (err, data) {
         if (err) {

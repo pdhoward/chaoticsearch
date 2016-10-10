@@ -12,10 +12,10 @@ export default class MessageListItem extends React.Component {
     const { message } = this.props;
 
     var stringText = message.text;
-    var text = new Array();
+    var text = [];
     text = stringText.split("\n");
-    var formatted = text.map(function(line) {
-        return (<p>{line}</p>)
+    var formatted = text.map(function(line, i) {
+        return (<span key={i}> {line} </span>)
       })
 
     return (

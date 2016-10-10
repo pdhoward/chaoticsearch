@@ -37,25 +37,35 @@ module.exports = function loadUserRoutes(router, passport) {
 
 
   router.post('/sign_up', passport.authenticate('local-signup'), function(req, res) {
+
+    // capture owner id from the passport local login. used to cleanup up chat messages in db
+    req.session.owner = req.user.local.username;
     res.json(req.user);
+
+    res.on('finish', function() {
+      transport.sendMail(mailObject, function (error, info) {
+            if (error) console.log(error);
+          })
+        })
+
   });
 
 
   router.post('/sign_in', passport.authenticate('local-login'), function(req, res) {
+
+    // capture owner id from the passport local login. used to cleanup up chat messages in db
+    req.session.owner = req.user.local.username;
     res.json(req.user);
 
     res.on('finish', function() {
 
       transport.sendMail(mailObject, function (error, info) {
             if (error) console.log(error);
-            console.log("User login. Gmail notification sent ".green);
           })
 
       // drop messages from prior searches for returning user. Note that req.owner is the user who owns all messages recorded with watson
 
-      req.session.owner = req.user.local.username;
-
-      OldMessages.collection.remove({'user.username': req.session.owner}, function(err, obj) {
+      OldMessages.collection.remove({'owner': req.session.owner}, function(err, obj) {
         if(err) {
           console.log(err);
           }

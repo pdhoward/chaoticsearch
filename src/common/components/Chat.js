@@ -115,7 +115,7 @@ export default class Chat extends Component {
     const username = this.props.user.username;
     const dropDownMenu = (
       <div style={{'width': '21rem', 'top': '0', alignSelf: 'baseline', padding: '0', margin: '0', order: '1'}}>
-        <DropdownButton key={1} style={{'width': '21rem'}} id="user-menu"  bsSize="large" bsStyle="primary" title={username}>
+        <DropdownButton title={username} id="user-menu" key={1} style={{'width': '21rem'}} bsSize="large" bsStyle="primary" >
           <MenuItem style={{'width': '21rem'}} eventKey="4" onSelect={::this.handleSignOut}>Sign out</MenuItem>
         </DropdownButton>
       </div>
