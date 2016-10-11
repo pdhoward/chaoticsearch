@@ -27,7 +27,7 @@ const watsonUserID = {
 }
 
 // note the ECMA 6 backtick for line breaks
-const MessageContent = `Book search demonstrates intelligent messaging`
+const MessageContent = `Book search demonstrates intelligent messaging. Say hi to get started.`
 
 
 ///////////////////////////////////////////////////////////////////////////////////

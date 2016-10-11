@@ -40,6 +40,10 @@ module.exports = function loadUserRoutes(router, passport) {
 
     // capture owner id from the passport local login. used to cleanup up chat messages in db
     req.session.owner = req.user.local.username;
+
+    // remove the context from the session so that the user begins at the start when logging back in
+    delete req.session.context;
+
     res.json(req.user);
 
     res.on('finish', function() {
@@ -55,6 +59,10 @@ module.exports = function loadUserRoutes(router, passport) {
 
     // capture owner id from the passport local login. used to cleanup up chat messages in db
     req.session.owner = req.user.local.username;
+
+    // remove the context from the session so that the user begins at the start when logging back in
+    delete req.session.context;
+
     res.json(req.user);
 
     res.on('finish', function() {
@@ -68,7 +76,7 @@ module.exports = function loadUserRoutes(router, passport) {
       OldMessages.collection.remove({'owner': req.session.owner}, function(err, obj) {
         if(err) {
           console.log(err);
-          }      
+          }
         });
       })
 
