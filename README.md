@@ -1,4 +1,14 @@
 
+
+chaoticbot2 is a derivative of chaoticbots project
+
+This project demonstrates the use of watson conversation in conjunction with the google api for book search
+
+The nodejs program works in concert with watson The overall flow, as outlined in watsonrouter.js shows a high degree
+of preprocessing of a text message as well as very deep coupling with the watson platform -- specifically coordinating on the
+us context flags to signal stage of preprocessing
+
+
 # React-redux-socketio-chat
 
 ![alt tag](ReadmeVideo.gif)
